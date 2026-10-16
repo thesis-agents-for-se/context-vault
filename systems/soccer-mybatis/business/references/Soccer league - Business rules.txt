@@ -1,0 +1,57 @@
+Soccer league - Business rules
+Written for testing. Based on what the code of the soccer sample does.
+What this system is for
+The system keeps the records of a soccer league: the teams, their
+players, the matches they play, the goals scored and the
+competitions the teams enter.
+League staﬀ use it. It has no page for fans; other systems read its
+data through its API.
+Teams
+A team has a name, a city, a country and a coach.
+Two teams cannot have the same name.
+A team can be deleted only if it has never played a match. Its
+players are deleted with it.
+Only an administrator can delete a team.
+Players
+A player belongs to exactly one team.
+A player has a name, a shirt number, an age, a preferred foot
+(left, right or both) and a position (goalkeeper, defender,
+midﬁelder or forward).
+The shirt number is between 1 and 99. Two players of the same
+team cannot have the same number.
+A player must be at least 15 years old.
+A team cannot have more than 25 players.
+A player who is 33 or older is shown as a veteran.
+The system counts the goals of each player. An administrator can
+set the goals of all the players of a team back to zero, for
+example when a new season starts.
+Matches
+A match has a home team, an away team and a stadium.
+
+A team cannot play against itself.
+A match starts with the score 0 - 0 and is not ﬁnished.
+The scoreboard shows the two team names and the goals of each
+one.
+When a match is ﬁnished it cannot be ﬁnished again.
+The winner is the team with more goals. If both have the same
+number of goals the match is a draw and there is no winner.
+Goals
+A goal is scored in a match, by a player, at a minute.
+The minute is between 0 and 130, so extra time is allowed.
+A goal can be added only while the match is not ﬁnished.
+The team that scores must be one of the two teams of the match,
+and the scorer is identiﬁed by the shirt number in that team.
+Recording a goal does three things together: the player has one
+more goal, the score of the match changes, and the goal is saved
+with its minute. If one of the three fails, none of them is kept.
+Competitions
+A competition has a name and a season. The season is a year
+with four digits.
+Two competitions cannot have the same name.
+A team can be registered in a competition only once.
+A team can be registered in several competitions.
+What the system does not do
+It does not schedule matches or keep their dates.
+It does not keep standings, points or tables.
+It does not handle cards, substitutions or injuries.
+A goal cannot be removed once it is recorded.

@@ -1,0 +1,45 @@
+Soccer league - How the system is
+used
+Written for testing. Based on what the code of the soccer sample does.
+Who uses it
+League staﬀ: they register teams and players, create matches
+and competitions, and record what happens in a match.
+Administrators: they do what the staﬀ do and, in addition, delete
+teams and reset the goals of a team.
+Other systems: they read teams, players and matches.
+Before the season
+The staﬀ create each team with its city, country and coach.
+They add the players of each team, one by one.
+They create the competitions of the season and register each
+team in the ones it will play.
+If a player leaves, the staﬀ remove the player from the team by
+the shirt number.
+On match day
+The staﬀ create the match with the two teams and the stadium.
+During the match, each goal is recorded as it happens: the team,
+the shirt number of the scorer and the minute.
+Anyone can ask for the match at any time to see the scoreboard.
+When the referee ends the match, the staﬀ ﬁnish it. After that the
+result does not change.
+After the match
+The team page shows how many players the team has, their
+average age and the top scorer.
+The list of players can be ﬁltered by position.
+What must be fast (assumptions)
+
+This part is not in the code. It was written for the tests of this
+repository and should be conﬁrmed by a person who knows the
+league.
+Recording a goal should feel immediate: it happens live and the
+person recording it cannot wait.
+Showing the scoreboard of a match should be fast: many readers
+ask for it during a match.
+Registering teams, players and competitions is done before the
+season, by a few people. It does not need to be fast.
+What belongs together (assumptions)
+This part is not in the code either.
+The squad of a team is managed by one group of people, before
+the season.
+Matches and their goals are managed by another group, on
+match day.
+Competitions change once a season.

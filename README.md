@@ -1,184 +1,230 @@
 # Knowledge vault
 
-Esta carpeta es el vault de Obsidian y la fuente documental versionada del proyecto.
-Las notas, plantillas y ajustes compartidos de `.obsidian/` se guardan en Git como
-Markdown/JSON portable.
+This folder is an Obsidian vault. It keeps the knowledge of the project under version control.
+Notes, templates and the shared Obsidian settings in `.obsidian/` are saved in Git as plain
+Markdown and JSON.
 
-## Política de versionado
+## Connect it to app-modernization
 
-- Versionar notas de sistemas, casos de uso, entidades, arquitectura, migraciones,
-  decisiones y `templates/`.
-- Versionar ajustes compartidos del vault, incluidos `app.json`, `core-plugins.json`
-  y `templates.json`.
-- No versionar `workspace.json`, `workspace-mobile.json` ni cachés: son estado local
-  de navegación de Obsidian y están excluidos por el `.gitignore` de la raíz.
-- Guardar el almacén de hechos y el índice de recuperación en `runs/_knowledge/`, fuera
-  del vault. `runs/` ya está excluido de Git; las fuentes Markdown permanecen versionadas.
-- Todas las operaciones de agentes sobre Markdown pasan por el bibliotecario (`librarian/`,
-  ver [docs/librarian.md](../docs/librarian.md));
-  no se concede acceso directo de filesystem a los agentes.
+This repository is the live vault of
+[app-modernization](https://github.com/thesis-agents-for-se/app-modernization). In that
+repository, the `knowledge/` folder only holds the seed: the patterns catalog, the templates
+and the Obsidian settings. What the agents and the people write lives here. The app does not
+clone or push this repository. It reads and writes a folder on disk, and that folder must be
+a clone of this repository.
 
-No guardar aquí checkpoints de LangGraph ni resultados experimentales generados.
-El estado del flujo y los hechos estructurados tienen sus almacenes separados.
+**1. Clone the vault** to an absolute path outside app-modernization:
 
-## Qué hay en el vault
+```bash
+git clone <url of this repository> /absolute/path/context-vault
+```
 
-| Carpeta | Contenido | Quién escribe |
+**2a. With Docker Compose** (option A of the app-modernization deployment guide), add this
+to the `.env` file of app-modernization:
+
+```
+VAULT_DIR=/absolute/path/context-vault
+HOST_UID=1000        # id -u of the folder's owner
+HOST_GID=1000        # id -g
+```
+
+Then, from app-modernization, run `docker compose up -d --build --wait`. Compose mounts the
+folder as `/data/knowledge` in the orchestrator and in the stages. The vault already has
+content, so the `init` service does not seed it and does not change its owner. If the services
+cannot write to it, `init` stops and asks you to set `HOST_UID` and `HOST_GID`.
+
+**2b. Without containers** (option B), add this to the same `.env` file. The orchestrator, the
+decomposer and the planner all read it:
+
+```
+KNOWLEDGE_DIR=/absolute/path/context-vault
+```
+
+The path must be absolute, and the same for all three. If it is missing, the decomposer warns
+at startup that it would write to `knowledge/` inside the code repository.
+
+**3. Check it.** At startup the decomposer prints `vault: <path>`. A project of the
+orchestrator writes to `systems/<slug>/`. The project page shows the slug.
+
+**4. Commit what they write.** The agents' draft notes and the business documents uploaded
+through the orchestrator arrive uncommitted. The planner reads the knowledge version from this
+Git repository. While there are uncommitted files, it stops at its `knowledge` gate. To go on
+with a reproducible version:
+
+```bash
+cd /absolute/path/context-vault
+git add -A && git commit -m "Notes of run <id>" && git push
+```
+
+On a server, do this in the server's clone. Nothing does it for you.
+
+**The catalog does not sync by itself.** If `patterns/` or `templates/` change in the
+`knowledge/` folder of app-modernization, copy them here and commit them.
+
+## What to keep in Git
+
+- Keep the notes: systems, use cases, entities, architecture, migrations, decisions, and
+  `templates/`.
+- Keep the shared vault settings, such as `app.json`, `core-plugins.json` and
+  `templates.json`.
+- Do not keep `workspace.json`, `workspace-mobile.json` or caches. They are Obsidian's local
+  state, and this repository's `.gitignore` leaves them out.
+- The facts store and the search index live in `runs/_knowledge/` of app-modernization, not
+  here. `runs/` is not in Git there. The Markdown sources stay in this repository.
+- Agents do not touch these files directly. Everything they read or write goes through the
+  librarian (`librarian/`, see
+  [docs/librarian.md](https://github.com/thesis-agents-for-se/app-modernization/blob/main/docs/librarian.md)).
+
+Do not keep LangGraph checkpoints or experiment results here. The workflow state and the
+structured facts have their own stores.
+
+## What is in the vault
+
+| Folder | Content | Who writes it |
 |---|---|---|
-| `systems/<monolito>/` | El conocimiento de cada monolito, en cuatro cerebros | Agentes (borradores) y personas |
-| `patterns/` | Catálogo compartido de antipatrones y patrones de microservicios | Solo personas; los agentes lo leen |
-| `templates/` | Plantillas de nota de Obsidian | Personas |
+| `systems/<monolith>/` | The knowledge of each monolith, split into four brains | Agents (drafts) and people |
+| `patterns/` | Shared catalog of microservice patterns and antipatterns | Only people; agents read it |
+| `templates/` | Obsidian note templates | People |
 
-El catálogo tiene su propio [README](patterns/README.md), formato y validador. Las notas
-de un monolito lo enlazan por el nombre de la entrada, por ejemplo `[[shared-database]]`.
+The catalog has its own [README](patterns/README.md), format and validator. A monolith's notes
+link to a catalog entry by its name, for example `[[shared-database]]`.
 
-## Un sistema por monolito, dividido en cerebros
+## One system per monolith, split into brains
 
-Cada monolito tiene su carpeta `systems/<monolito>/`. El nombre es el mismo que usa
-`runs/<monolito>/`: sale de la carpeta del código, en minúsculas y con guiones
-(`JPetStore 6` → `jpetstore-6`). Dentro, el conocimiento se divide en cuatro cerebros:
+Each monolith has its own folder, `systems/<monolith>/`. The name is the same one used in
+`runs/<monolith>/` in app-modernization. It comes from the code's folder name, in lowercase and
+with dashes (`JPetStore 6` → `jpetstore-6`). Inside, the knowledge is split into four brains:
 
-| Cerebro | Contenido | Plantillas |
+| Brain | Content | Templates |
 |---|---|---|
-| `business/` | Problema, solución, beneficios, stakeholders, requisitos, restricciones, casos de uso y reglas de negocio. `business/references/` guarda los documentos fuente, cada PDF con su `.txt` | `business-overview`, `business-stakeholder`, `business-requirement`, `business-constraint`, `business-use-case` |
-| `code/` | Cómo es hoy el sistema: componentes, entidades y datos, accesos, dependencias | `code-component`, `code-entity` |
-| `architecture/` | Hacia dónde va: fronteras de servicio, decisiones, antipatrones detectados | `architecture-service`, `architecture-decision` |
-| `migration/` | Cómo se llega: pasos, orden, riesgos, migración de datos | `migration-step` |
+| `business/` | Problem, solution, benefits, stakeholders, requirements, constraints, use cases and business rules. `business/references/` keeps the source documents, each PDF with its `.txt` | `business-overview`, `business-stakeholder`, `business-requirement`, `business-constraint`, `business-use-case` |
+| `code/` | What the system looks like today: components, entities and data, data access, dependencies | `code-component`, `code-entity` |
+| `architecture/` | Where it is going: service boundaries, decisions, antipatterns found | `architecture-service`, `architecture-decision` |
+| `migration/` | How to get there: steps, order, risks, data migration | `migration-step` |
 
-Una nota pertenece al cerebro y al sistema de su carpeta; las plantillas no los fijan. Si
-una nota declara `system:` en su frontmatter, ese valor manda. Los agentes solo pueden
-escribir dentro de un cerebro y dentro de su propio monolito, y los hechos de notas
-aprobadas solo se entregan a los agentes de ese monolito.
+A note belongs to the brain and the system of its folder; templates do not set them. If a note
+has `system:` in its frontmatter, that value wins. Agents can only write inside a brain of
+their own monolith, and facts from approved notes are only given to that monolith's agents.
 
-De `business/references/` leen el agente de casos de uso, la mesa de configuración y el
-índice de búsqueda.
+The use case agent, the configuration table and the search index read from
+`business/references/`.
 
-Esta carpeta, `knowledge/` del repositorio de código, es solo la **semilla**: el catálogo de
-patrones, las plantillas y la configuración de Obsidian. El vault vivo es un **repositorio git
-aparte**, en la carpeta que indica `KNOWLEDGE_DIR` (con Docker Compose, `VAULT_DIR`): ahí
-escriben los agentes y el planner, ahí van los documentos de negocio y lo que se edita en
-Obsidian, y de ahí el planner toma la versión del conocimiento. `knowledge/systems/` está
-ignorado en este repositorio. Sin `KNOWLEDGE_DIR`, el vault se busca en `knowledge/` bajo la
-carpeta de trabajo.
+## Notes the agents write
 
-## Notas que escriben los agentes del flujo
+No note is generated by fixed code. When a decomposer agent finishes its work, it gets one more
+turn in its own conversation with a single tool, `write_vault_note`, and writes what it found.
+Agents that work in parallel (the ERM generators, the three analysts of the configuration
+table) write at the same time; the librarian's write queue puts the writes in order. Notes are
+in English, like the catalog and the templates. They are always `status: draft` with
+`proposal: true`: they are proposals until a person reviews them.
 
-Ninguna nota del flujo se genera de forma determinista. Cada agente del decomposer, al
-terminar su trabajo, recibe un turno más en su propia conversación con una sola herramienta,
-`write_vault_note`, y escribe lo que encontró. Los agentes que trabajan en paralelo (los
-generadores del ERM, los tres analistas de la mesa de configuración) escriben a la vez: la
-fila de escritura del bibliotecario ordena las escrituras. Las notas están en inglés, como el
-catálogo y las plantillas, y siempre son `status: draft` con `proposal: true`: son propuestas
-sin aprobar hasta que una persona las revisa.
-
-| Agente | Qué escribe | Carpeta |
+| Agent | What it writes | Folder |
 |---|---|---|
-| Explorador del ERM (`erm-explorer`) | Una nota por entidad y un resumen en el índice de la corrida | `code/entities/`, `architecture/runs/` |
-| Explorador de casos (`use-case-explorer`) o analista de negocio (`business-analyst`) | Una nota por caso de uso | `business/use-cases/` |
-| Asesor de clusters (`cluster-advisor`) | La sugerencia de número de servicios | `architecture/decisions/cluster-count-<corrida>.md` |
-| Analistas y juez de la mesa (`configuration-analyst-<rol>`, `configuration-judge`) | Su propuesta de prioridades, la decisión del juez y la evidencia citada | `architecture/decisions/configuration-<corrida>.md` |
-| Revisor de la partición (`partition-reviewer`) | Una nota por servicio y su lectura de la partición | `architecture/services/<corrida>/`, `architecture/decisions/partition-review-<corrida>.md` |
-| Planner (al aprobar el plan) | Migración por servicio y decisiones de datos | `migration/plan-<corrida>-<servicio>.md`, `architecture/plan-<corrida>-data-decisions.md` |
+| ERM explorer (`erm-explorer`) | One note per entity and a summary in the run's index | `code/entities/`, `architecture/runs/` |
+| Use case explorer (`use-case-explorer`) or business analyst (`business-analyst`) | One note per use case | `business/use-cases/` |
+| Cluster advisor (`cluster-advisor`) | The suggested number of services | `architecture/decisions/cluster-count-<run>.md` |
+| Configuration analysts and judge (`configuration-analyst-<role>`, `configuration-judge`) | Their priority proposal, the judge's decision and the evidence they cite | `architecture/decisions/configuration-<run>.md` |
+| Partition reviewer (`partition-reviewer`) | One note per service and its reading of the partition | `architecture/services/<run>/`, `architecture/decisions/partition-review-<run>.md` |
+| Planner (when the plan is approved) | Migration per service and data decisions | `migration/plan-<run>-<service>.md`, `architecture/plan-<run>-data-decisions.md` |
 
-`<corrida>` son los primeros ocho caracteres del identificador de la corrida. Entidades y
-casos de uso son notas del sistema, una por nombre; lo demás es por corrida.
+`<run>` is the first eight characters of the run's id. Entities and use cases are system notes,
+one per name; everything else is per run.
 
-**Una sección por agente.** La primera escritura crea la nota con su frontmatter; cada agente
-agrega después su propia sección, `## <agente> - <etapa> - run <corrida> (unapproved
-proposal)`, sin borrar lo que escribieron otros. Un encabezado de nivel 1 o 2 del agente se
-baja a nivel 3 para no romper la estructura. Una nota `reviewed` o `approved` no se toca.
+**One section per agent.** The first write creates the note with its frontmatter. Then each
+agent adds its own section, `## <agent> - <stage> - run <run> (unapproved proposal)`, without
+deleting what other agents wrote. If an agent writes a level 1 or 2 heading, it becomes level 3
+so the structure stays intact. A `reviewed` or `approved` note is never touched.
 
-**Enlaces.** Los agentes enlazan con una forma corta y el bibliotecario la convierte en la
-ruta completa con alias: `[[entity:orders]]` → `[[systems/jpetstore/code/entities/orders|orders]]`.
-Formas: `[[entity:…]]`, `[[use_case:…]]`, `[[service:…]]`, `[[decision:…]]`, `[[run:]]`,
-`[[pattern:<id>]]` y `[[antipattern:<id>]]`. Un patrón que no está en el catálogo queda como
-texto. Una entidad o servicio que todavía no tiene nota queda como enlace: Obsidian lo muestra
-como nodo vacío hasta que otro agente la escribe.
+**Links.** Agents use a short form and the librarian turns it into the full path with an alias:
+`[[entity:orders]]` → `[[systems/jpetstore/code/entities/orders|orders]]`. Short forms:
+`[[entity:…]]`, `[[use_case:…]]`, `[[service:…]]`, `[[decision:…]]`, `[[run:]]`,
+`[[pattern:<id>]]` and `[[antipattern:<id>]]`. A pattern that is not in the catalog stays as
+plain text. An entity or service that has no note yet stays as a link: Obsidian shows it as an
+empty node until another agent writes it.
 
-**Nunca bloquea.** Si el modelo no admite herramientas, el vault no está disponible o la
-escritura falla, el agente entrega igual su respuesta y el fallo queda en su evidencia
-(`vault_notes`) y como evento `vault`. Lo escrito no cuenta como evidencia de grounding.
+**It never blocks.** If the model does not support tools, the vault is not available or the
+write fails, the agent still gives its answer. The failure is saved in its evidence
+(`vault_notes`) and as a `vault` event. What an agent writes here never counts as grounding
+evidence.
 
-**El grafo.** `.obsidian/graph.json` colorea cada tipo de nota (entidades, casos de uso,
-servicios, índices de corrida, decisiones, migración, patrones y antipatrones), muestra la
-dirección de los enlaces y oculta `business/references/` y `templates/`.
+**The graph.** `.obsidian/graph.json` gives each kind of note its own color (entities, use
+cases, services, run indexes, decisions, migration, patterns and antipatterns), shows the
+direction of the links, and hides `business/references/` and `templates/`.
 
-## Bases separadas
+## Separate databases
 
-| Archivo | Contenido | Reconstruible |
+These files live in app-modernization, not in this repository.
+
+| File | Content | Can be rebuilt |
 |---|---|---|
-| `workspace.sqlite3` | Checkpoints LangGraph, estado del ciclo y aprobaciones operativas | No: es estado de ejecución |
-| `runs/_knowledge/knowledge-store.sqlite3` | Fila de escritura; snapshots aprobados de ERM, casos de uso y configuración con su procedencia completa; hechos atomizados que referencian su snapshot (`artifact_id`); propuestas/bloqueos de notas | No: almacén durable |
-| `runs/_knowledge/rag-index/<corpus>.sqlite3` | FTS5, manifiesto, fragmentos y vectores densos de un corpus (vault + un código legado) | Sí: se regenera de las fuentes |
+| `workspace.sqlite3` | LangGraph checkpoints, cycle state and operational approvals | No: it is execution state |
+| `runs/_knowledge/knowledge-store.sqlite3` | The write queue; approved snapshots of the ERM, use cases and configuration with their full origin; single facts that point to their snapshot (`artifact_id`); note proposals and locks | No: durable store |
+| `runs/_knowledge/rag-index/<corpus>.sqlite3` | FTS5, manifest, chunks and dense vectors of one corpus (the vault plus one legacy codebase) | Yes: it is rebuilt from the sources |
 
-Hay un índice por corpus, junto al store, nombrado por un hash de las rutas del vault
-y el legado. Así una búsqueda sobre otro sistema (o una prueba) no reconstruye ni borra
-el índice de este. El antiguo `knowledge-index.sqlite3` solo se lee una vez para migrar
-bloqueos y propuestas; puede borrarse.
+There is one index per corpus, next to the store, named by a hash of the vault and legacy
+paths. This way a search on another system (or a test) does not rebuild or delete this
+system's index. The old `knowledge-index.sqlite3` is only read once to move its locks and
+proposals; you can delete it.
 
-Al iniciar, el workflow hace backfill idempotente de las aprobaciones vigentes del
-checkpoint hacia el knowledge store. El contenido del artifact conserva los candidatos
-que se compararon, el plan de fusión y el commit fuente como procedencia.
+At startup, the workflow copies the current approvals from the checkpoint to the knowledge
+store. Running this twice is safe. Each artifact keeps, as its origin, the candidates that were
+compared, the merge plan and the source commit.
 
-## Lectura, recuperación y escrituras de agentes
+## Reading, search and agent writes
 
-- `search_knowledge` usa SQLite FTS5/BM25 y, si se configura, embeddings densos; siempre
-  conserva similitud de vectores dispersos como señal complementaria. Devuelve cita, ruta,
-  rango de líneas, sistema, tipo de artefacto, caso, commit, estado y confianza. Filtra
-  por esos metadatos; por defecto excluye `draft`.
-  Sin credenciales/modelo configurado usa BM25 más vector disperso.
-- Para habilitar embeddings densos (opt-in), antes de iniciar el servidor configure
-  uno de estos proveedores:
+- `search_knowledge` uses SQLite FTS5/BM25 and, if configured, dense embeddings. It always
+  adds sparse vector similarity as an extra signal. It returns the citation, path, line range,
+  system, artifact type, case, commit, status and confidence, and it can filter by them. By
+  default it leaves out `draft` notes. Without credentials or a configured model, it uses
+  BM25 plus sparse vectors.
+- To turn on dense embeddings (optional), set one of these providers before starting the
+  server:
 
   ```bash
-  # En .env o exportadas. Remoto; requiere OPENROUTER_API_KEY y envía fragmentos/consultas al proveedor.
+  # In .env or exported. Remote: needs OPENROUTER_API_KEY and sends chunks and queries to the provider.
   RAG_EMBEDDING_PROVIDER=openrouter
-  RAG_EMBEDDING_MODEL=<modelo de embeddings del catalogo>
+  RAG_EMBEDDING_MODEL=<embedding model from the catalog>
 
-  # Alternativa local para los embeddings (no para los agentes); requiere Ollama activo.
+  # Local option for the embeddings (not for the agents); needs Ollama running.
   RAG_EMBEDDING_PROVIDER=ollama
-  RAG_EMBEDDING_MODEL=<modelo de embeddings descargado>
+  RAG_EMBEDDING_MODEL=<downloaded embedding model>
   ```
 
-  El índice denso guarda hasta 5.000 vectores en el índice del corpus; el límite
-  se puede ajustar con `RAG_EMBEDDING_MAX_CHUNKS`. Cambio de proveedor/modelo o fuentes
-  invalida y reconstruye los vectores. Si embeddings fallan, la búsqueda vuelve a BM25
-  y similitud dispersa y reporta el modo/fallo al agente.
-- El índice se construye desde `systems/` (incluidos los documentos de
-  `systems/<monolito>/business/references/`) y fragmentos del código del legado. Se excluyen `.obsidian`, `templates/`, tests,
-  temporales, copias de recuperación y salida de build.
-- El índice incluye notas Markdown del vault y fuentes `.java`, `.xml`, `.sql`, `.md` y
-  `.txt` del legado/documentación. Los PDF deben tener texto hermano extraído (`.txt`);
-  el indexador no interpreta binarios PDF directamente.
-- `read_note` devuelve el SHA-256 observado. `propose_note_update` conserva la propuesta
-  en SQLite sin tocar Markdown; `apply_note_update` la pone en la **fila de escritura**.
-  Todas las escrituras de todos los agentes pasan por esa única fila y se aplican una a
-  la vez, en orden de llegada, con archivo temporal y `os.replace`. Quien parte de un
-  hash obsoleto recibe conflicto y no escribe nada. Lectores ven la versión completa
-  anterior o nueva.
-- `append_note_section` agrega una sección a un borrador existente sin necesidad de hash:
-  al ser secuencial la fila, las secciones de varios agentes quedan todas.
-- Un agente solo puede crear/actualizar notas Markdown bajo
-  `systems/<monolito>/<cerebro>/` con `status: draft`. Notas `reviewed` o `approved` son
-  inmutables para agentes; tampoco pueden aprobar una nota. La revisión humana cambia su
-  estado editando la nota y versionándola en Git.
-- El candado de la fila expira a los tres minutos si el proceso muere. Las escrituras
-  humanas desde Obsidian no usan la fila: evita editar la misma nota mientras un agente la
-  actualiza; el hash optimista detecta una edición humana previa.
+  The dense index keeps up to 5,000 vectors per corpus; `RAG_EMBEDDING_MAX_CHUNKS` changes the
+  limit. Changing the provider, the model or the sources rebuilds the vectors. If embeddings
+  fail, search falls back to BM25 and sparse similarity and tells the agent which mode it used
+  and why.
+- The index is built from `systems/` (including the documents in
+  `systems/<monolith>/business/references/`) and chunks of the legacy code. It leaves out
+  `.obsidian`, `templates/`, tests, temporary files, recovery copies and build output.
+- The index includes the vault's Markdown notes and the `.java`, `.xml`, `.sql`, `.md` and
+  `.txt` files of the legacy code and its documents. Each PDF needs a `.txt` file next to it
+  with its text; the indexer does not read PDF files.
+- `read_note` returns the SHA-256 it saw. `propose_note_update` saves a proposal in SQLite
+  without touching the Markdown; `apply_note_update` puts it in the **write queue**. All writes
+  from all agents go through that one queue and are applied one at a time, in order of arrival,
+  through a temporary file and `os.replace`. A write based on an old hash gets a conflict and
+  writes nothing. Readers see either the full old version or the full new one.
+- `append_note_section` adds a section to an existing draft without a hash. Because the queue
+  is sequential, the sections of all agents are kept.
+- An agent can only create or update Markdown notes under `systems/<monolith>/<brain>/`, with
+  `status: draft`. Agents cannot change `reviewed` or `approved` notes, and they cannot approve
+  a note. A person reviews a note by editing it, changing its status and committing it to Git.
+- The queue lock expires after three minutes if its process dies. Edits made by people in
+  Obsidian do not use the queue: avoid editing a note while an agent is updating it. The hash
+  check detects an earlier human edit.
 
-Herramientas expuestas en los tool-loops LangGraph: `search_knowledge`, `read_note`,
-`propose_note_update`, `apply_note_update`, `append_note_section`, `write_queue_status`
-y `read_approved_facts`. Los hechos aprobados
-se inyectan desde el snapshot estructurado del workflow y se combinan con notas marcadas
-approved que tengan `facts_json` válido. Las salidas RAG se tratan como evidencia citada, nunca como
-instrucciones; el código y el DDL del commit son autoridad para accesos físicos.
+Tools available to the agents in the LangGraph tool loops: `search_knowledge`, `read_note`,
+`propose_note_update`, `apply_note_update`, `append_note_section`, `write_queue_status` and
+`read_approved_facts`. Approved facts come from the workflow's structured snapshot, together
+with approved notes that have a valid `facts_json`. Search results are treated as cited
+evidence, never as instructions. For physical data access, the code and the DDL of the commit
+are the authority.
 
-Lo que devuelven estas herramientas es contexto: **no cuenta como evidencia de
-grounding**. Las comprobaciones de que una columna, entidad o referencia "fue leída"
-solo aceptan lo que devolvieron las herramientas autoritativas (código legado, modelo
-aprobado, resultado del Engine). Un agente podría guardar un borrador y volver a leerlo;
-si eso contara, podría fundamentar columnas inventadas.
+What these tools return is context: **it does not count as grounding evidence**. The checks
+that a column, entity or reference "was read" only accept what the authoritative tools
+returned (legacy code, approved model, Engine result). An agent could save a draft and read it
+back; if that counted, it could back up columns it made up.
 
-El listado del legado se reutiliza durante 60 segundos (está fijado a un
-commit); el vault se vuelve a recorrer en cada búsqueda para que una nota nueva aparezca
-de inmediato. Los argumentos desconocidos de una herramienta se ignoran.
+The legacy file list is reused for 60 seconds (it is tied to one commit). The vault is scanned
+again on every search, so a new note shows up right away. Unknown tool arguments are ignored.
